@@ -1,6 +1,24 @@
 import { Router } from "express";
 import { getMedias, writeMedias } from "../controllers/media.js";
 import axios from "axios";
+import multer from "multer";
+import { v2 as cloudinary } from "cloudinary";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
+
+const cloudStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "Strive-Netflix-API",
+  },
+});
+
+cloudinary.config({
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.API_SECRET,
+});
+
+const cloudMulter = multer({ storage: cloudStorage });
 
 const router = Router();
 
@@ -109,5 +127,33 @@ router.delete("/:imdbID", async (req, res, next) => {
     next(error);
   }
 });
+
+router.post(
+  "/:imdbID/upload",
+  cloudMulter.single("picture"),
+  async (req, res, next) => {
+    try {
+      console.log(req.file.path);
+      let medias = await getMedias();
+      let media = medias.find((media) => media.imdbID === req.params.imdbID);
+      if (media) {
+        media = {
+          ...media,
+          Picture: req.file.path,
+          uploadedAt: new Date(),
+        };
+        medias = medias.filter((media) => media.imdbID !== req.params.imdbID);
+        medias.push(media);
+        await writeMedias(medias);
+        res.send(media);
+      } else {
+        res.status(404).send("No media with this imdbID is found");
+      }
+    } catch (error) {
+      console.log(error);
+      next(error);
+    }
+  }
+);
 
 export default router;
