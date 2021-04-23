@@ -24,8 +24,35 @@ const router = Router();
 
 router.get("/", async (req, res, next) => {
   try {
-    const medias = await getMedias();
-    res.send(medias);
+    // const medias = await getMedias();
+    // medias = medias.filter((media) =>
+    //   media[req.query].toLowerCase().includes(req.query)
+    // );
+    // res.send(medias);
+    // let medias = await getMedias()
+
+    if (req.query.id) {
+      const response = await axios({
+        method: "get",
+        url: `http://www.omdbapi.com/?i=${req.query.id}&apikey=${process.env.OMDB_API_KEY}`,
+      });
+      res.send(response.data);
+    } else if (req.query.title) {
+      const response = await axios({
+        method: "get",
+        url: `http://www.omdbapi.com/?s=${req.query.title}&apikey=${process.env.OMDB_API_KEY}`,
+      });
+      let data = response.data;
+      if (req.query.year && req.query.type) {
+        data = data.filter((movie) => movie.Year === req.query.year);
+        data = data.filter((movie) => movie.type === req.query.type);
+      } else if (req.query.year) {
+        data = data.filter((movie) => movie.Year === req.query.year);
+      } else if (req.query.type) {
+        data = data.filter((movie) => movie.Type === req.query.type);
+      }
+      res.send(medias);
+    }
   } catch (err) {
     console.log(error);
     const error = new Error(err.message);
@@ -41,10 +68,89 @@ router.get("/:imdbID", async (req, res, next) => {
     if (media) {
       res.send(media);
     } else {
-      res.status(404).send({ message: `No media with this imdbID was found` });
+      const response = await axios({
+        method: "get",
+        url: `http://www.omdbapi.com/?i=${req.params.imdbID}&apikey=${process.env.OMDB_API_KEY}`,
+      });
+      if (response.data.imdbID !== undefined) {
+        let data = response.data;
+        const newMedia = {
+          Title: data.Title,
+          Year: data.Year,
+          Released: data.Released,
+          Runtime: data.Runtime,
+          Genre: data.Runtime,
+          Plot: data.Plot,
+          Poster: data.Poster,
+          imdbRating: data.imdbRating,
+          imdbID: data.imdbID,
+        };
+        medias.push(newMedia);
+        await writeMedias(medias);
+        res.send(newMedia);
+      } else {
+        throw new Error("Data is undefined");
+      }
     }
   } catch (err) {
     console.log(error);
+    const error = new Error(err.message);
+    error.httpStatusCode = 500;
+    next(error);
+  }
+});
+
+// router.get("/sort", async (req, res, next) => {
+//   try {
+//     if (req.query.by) {
+//       if (req.query.by === "rating") {
+//         let medias = await getMedias();
+//         medias.forEach((media) => {
+//           let reviews = media.reviews;
+//           media.Rating =
+//             reviews.reduce((acc, cv) => acc + cv.rate, 0) / reviews.length;
+//         });
+//         medias.sort((a, b) => a.Rating - b.Rating);
+//         res.send(medias);
+//       } else if (req.query.by === "title") {
+//         let medias = await getMedias();
+//         medias.sort((a, b) => (a.Title > b.Title ? 1 : -1));
+//         res.send(medias);
+//       } else if (req.query.by === "genre") {
+//         let medias = await getMedias();
+//         medias.sort((a, b) => (a.Genre > b.Genre ? 1 : -1));
+//         res.send(medias);
+//       } else if (req.query.by === "year") {
+//         let medias = await getMedias();
+//         medias.sort((a, b) => (a.Year > b.Year ? 1 : -1));
+//         res.send(medias);
+//       } else {
+//         const error = new Error(`Sorting by ${req.query.by} is not available`);
+//         next(error);
+//       }
+//     } else {
+//       const error = new Error("Query parameter missing");
+//       next(error);
+//     }
+//   } catch (err) {
+//     console.log(err);
+//     const error = new Error(err.message);
+//     error.httpStatusCode = 500;
+//     next(error);
+//   }
+// });
+
+router.get("/catalogue/export", async (req, res, next) => {
+  try {
+    if (req.query.title) {
+      const response = await axios({
+        method: "get",
+        url: `http://www.omdbapi.com/?s=${req.query.title}&apikey=${process.env.OMDB_API_KEY}`,
+      });
+      const data = response.data;
+    }
+  } catch (err) {
+    console.log(err);
     const error = new Error(err.message);
     error.httpStatusCode = 500;
     next(error);
